@@ -1,1 +1,1 @@
-# -solo-battle-royale
+    index.html
