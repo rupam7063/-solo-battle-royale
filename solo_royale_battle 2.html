@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Solo Royale</title><style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:Arial;touch-action:none}canvas{width:100%;height:100%;display:block}
+#ui{position:fixed;inset:0;pointer-events:none;color:white;font-weight:bold;text-shadow:2px 2px 3px #000}
+.top{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between}.bar{background:#0008;padding:7px 10px;border-radius:9px}
+#start,#over{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#07131ddd;color:#fff;text-align:center;z-index:5}
+.card{background:#000b;padding:25px;border-radius:20px;width:min(360px,90%)}button{border:0;border-radius:12px;padding:13px 25px;font-size:18px;font-weight:bold}
+#over{display:none}#joy{position:fixed;left:20px;bottom:24px;width:125px;height:125px;border-radius:50%;background:#ffffff20;border:2px solid #fff5;z-index:3}
+#stick{position:absolute;width:48px;height:48px;left:36px;top:36px;border-radius:50%;background:#fff8}
+#fire{position:fixed;right:25px;bottom:35px;width:88px;height:88px;border-radius:50%;background:#d33c;color:#fff;border:3px solid #fff;z-index:3;font-weight:bold}
+#reload{position:fixed;right:40px;bottom:140px;background:#0009;color:#fff;border:1px solid #fff8;padding:9px 13px;border-radius:10px;z-index:3}
+#help{position:fixed;bottom:4px;left:50%;transform:translateX(-50%);font-size:11px;color:#fffc;z-index:2}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="ui"><div class="top"><span class="bar" id="hp">❤️ 100</span><span class="bar" id="alive">👥 30</span><span class="bar" id="gun">🔫 AR • 30/90</span></div></div>
+<div id="joy"><div id="stick"></div></div><button id="fire">FIRE</button><button id="reload">↻ Reload</button><div id="help">Joystick: move • drag screen: aim • FIRE: shoot</div>
+<div id="start"><div class="card"><h1>⚡ SOLO ROYALE</h1><p>Original single-player battle-royale browser game.</p><p>You are the only human. AI opponents will hunt you.</p><button id="go">START MATCH</button></div></div>
+<div id="over"><div class="card"><h1 id="result"></h1><p id="stats"></p><button onclick="location.reload()">PLAY AGAIN</button></div></div>
+<script>
+const cv=document.getElementById('c'),x=cv.getContext('2d');let W,H,scale;
+function size(){scale=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*scale;cv.height=H*scale;x.setTransform(scale,0,0,scale,0,0)}addEventListener('resize',size);size();
+const R=(a,b)=>a+Math.random()*(b-a),D=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+let p,bots,shots,eshots,loot,zone,run=false,last,kills=0,joy={x:0,y:0},aim=0,fire=false;
+function start(){p={x:0,y:0,r:15,hp:100,armor:50,spd:210,ang:0,mag:30,res:90,cd:0,reload:0};bots=[];shots=[];eshots=[];loot=[];
+for(let i=0;i<29;i++){let a=Math.random()*6.28,d=R(300,1250);bots.push({x:Math.cos(a)*d,y:Math.sin(a)*d,r:14,hp:100,ang:0,cd:R(.4,2),spd:R(70,105),seen:0})}
+for(let i=0;i<80;i++){let a=Math.random()*6.28,d=R(100,1450);loot.push({x:Math.cos(a)*d,y:Math.sin(a)*d,t:Math.random()<.65?'ammo':'med'})}
+zone={r:1500,t:0};run=true;last=performance.now();requestAnimationFrame(loop)}
+function shoot(){if(!run||p.reload>0||p.cd>0||p.mag<=0)return;p.mag--;p.cd=.11;shots.push({x:p.x+Math.cos(p.ang)*20,y:p.y+Math.sin(p.ang)*20,vx:Math.cos(p.ang)*650,vy:Math.sin(p.ang)*650,l:1})}
+function reload(){if(p.reload<=0&&p.res>0&&p.mag<30)p.reload=1.3}
+function update(dt){
+if(p.reload>0){p.reload-=dt;if(p.reload<=0){let n=Math.min(30-p.mag,p.res);p.mag+=n;p.res-=n}}
+p.cd=Math.max(0,p.cd-dt);p.x+=joy.x*p.spd*dt;p.y+=joy.y*p.spd*dt;
+zone.t+=dt;zone.r=Math.max(170,1500-zone.t*7);
+for(let b of bots){if(b.hp<=0)continue;b.cd-=dt;let dx=p.x-b.x,dy=p.y-b.y,d=Math.hypot(dx,dy)||1;b.ang=Math.atan2(dy,dx);
+if(d<700){b.seen=2;b.x+=dx/d*b.spd*dt;b.y+=dy/d*b.spd*dt;if(b.cd<=0){b.cd=R(1.0,2.2);eshots.push({x:b.x,y:b.y,vx:Math.cos(b.ang)*330,vy:Math.sin(b.ang)*330,l:1.8})}}
+else{b.seen-=dt;b.x+=Math.cos(b.ang)*b.spd*.25*dt;b.y+=Math.sin(b.ang)*b.spd*.25*dt}
+if(Math.hypot(b.x,b.y)>zone.r)b.hp-=10*dt}
+for(let q of shots){q.x+=q.vx*dt;q.y+=q.vy*dt;q.l-=dt;for(let b of bots)if(b.hp>0&&Math.hypot(q.x-b.x,q.y-b.y)<b.r+5){b.hp-=50;q.l=0;if(b.hp<=0)kills++}}
+for(let q of eshots){q.x+=q.vx*dt;q.y+=q.vy*dt;q.l-=dt;if(Math.hypot(q.x-p.x,q.y-p.y)<20){let dmg=12;if(p.armor>0){let a=Math.min(p.armor,dmg*.65);p.armor-=a;dmg-=a}p.hp-=dmg;q.l=0}}
+shots=shots.filter(q=>q.l>0);eshots=eshots.filter(q=>q.l>0);bots=bots.filter(b=>b.hp>0);
+for(let l of loot){if(!l.got&&Math.hypot(l.x-p.x,l.y-p.y)<28){l.got=true;if(l.t==='ammo')p.res=Math.min(180,p.res+30);else p.hp=Math.min(100,p.hp+20)}}
+if(Math.hypot(p.x,p.y)>zone.r)p.hp-=8*dt;
+if(p.hp<=0)finish(false);if(bots.length===0)finish(true);
+document.getElementById('hp').textContent=`❤️ ${Math.max(0,Math.ceil(p.hp))}  🛡️ ${Math.ceil(p.armor)}`;
+document.getElementById('alive').textContent=`👥 ${bots.length+1}`;
+document.getElementById('gun').textContent=`🔫 AR • ${p.mag}/${p.res}${p.reload>0?' • RELOADING':''}`;
+}
+function draw(){
+x.clearRect(0,0,W,H);x.save();x.translate(W/2-p.x,H/2-p.y);x.fillStyle='#5b954b';x.fillRect(-2200,-2200,4400,4400);
+x.strokeStyle='#ffffff12';for(let i=-2000;i<2000;i+=100){x.beginPath();x.moveTo(i,-2000);x.lineTo(i,2000);x.stroke();x.beginPath();x.moveTo(-2000,i);x.lineTo(2000,i);x.stroke()}
+for(let l of loot)if(!l.got){x.fillStyle=l.t==='ammo'?'#ffd34d':'#55d879';x.fillRect(l.x-7,l.y-7,14,14)}
+x.beginPath();x.arc(0,0,zone.r,0,7);x.fillStyle='#4b91ff18';x.fill();x.strokeStyle='#bde5ff';x.lineWidth=5;x.stroke();
+for(let q of shots){x.fillStyle='#ffe36b';x.beginPath();x.arc(q.x,q.y,4,0,7);x.fill()}for(let q of eshots){x.fillStyle='#ff7777';x.beginPath();x.arc(q.x,q.y,4,0,7);x.fill()}
+for(let b of bots){x.save();x.translate(b.x,b.y);x.rotate(b.ang);x.fillStyle='#d64d4d';x.beginPath();x.arc(0,0,14,0,7);x.fill();x.fillStyle='#222';x.fillRect(6,-4,21,8);x.restore();x.fillStyle='#222';x.fillRect(b.x-18,b.y-24,36,4);x.fillStyle='#69dc66';x.fillRect(b.x-18,b.y-24,36*Math.max(0,b.hp/100),4)}
+x.save();x.translate(p.x,p.y);x.rotate(p.ang);x.fillStyle='#299cff';x.beginPath();x.arc(0,0,15,0,7);x.fill();x.fillStyle='#222';x.fillRect(7,-5,25,10);x.restore();x.restore();
+}
+function finish(win){run=false;document.getElementById('over').style.display='flex';document.getElementById('result').textContent=win?'🏆 BOOYAH!':'💀 ELIMINATED';document.getElementById('stats').textContent=`Kills: ${kills} • ${win?'You cleared the island!':'Try another drop.'}`}
+function loop(t){if(!run)return;let dt=Math.min(.04,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(loop)}
+const je=document.getElementById('joy');function setJ(e){let r=je.getBoundingClientRect(),dx=(e.clientX-(r.left+r.width/2))/(r.width/2),dy=(e.clientY-(r.top+r.height/2))/(r.height/2),m=Math.hypot(dx,dy)||1;if(m>1){dx/=m;dy/=m}joy={x:dx,y:dy};document.getElementById('stick').style.transform=`translate(${dx*38}px,${dy*38}px)`}
+je.onpointerdown=e=>{je.setPointerCapture(e.pointerId);setJ(e)};je.onpointermove=e=>{if(e.buttons)setJ(e)};je.onpointerup=()=>{joy={x:0,y:0};document.getElementById('stick').style.transform='translate(0,0)'};
+document.getElementById('fire').onpointerdown=e=>{e.preventDefault();shoot()};document.getElementById('reload').onclick=reload;
+cv.onpointermove=e=>{if(run){let dx=e.clientX-W/2,dy=e.clientY-H/2;if(Math.hypot(dx,dy)>18)p.ang=Math.atan2(dy,dx)}};document.getElementById('go').onclick=()=>{document.getElementById('start').style.display='none';start()};
+</script></body></html>
